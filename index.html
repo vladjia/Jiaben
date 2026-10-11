@@ -25,7 +25,7 @@
     · 開場影片：每次打開 App 播一次（不循環、沒聲音）；換頁時改用 loading 影片
     · 內頁畫好（famready）才掀開開場，不會露出空白頁
     · 換頁（famnav）、底色同步（fambg）、瀏海高度（famsafe）—— 跟家菜金同一套訊號
-    · 推播訂閱的接線照搬，但後端還沒做 → PUSH_READY = false，先不跳通知卡
+    · 推播訂閱的接線照搬；10/11 後端做好 → PUSH_READY = true
 
   跟家菜金不一樣：
     · 沒有 PIN（元家 10/11 選「先試只有我自己」）：GAS 部署「只有我自己」，
@@ -109,8 +109,8 @@ body{color:#E9DCC4;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif}
 /* ══ 部署之後，把這條換成 GAS 網頁應用程式的網址（…/exec）══ */
 var APP = 'https://script.google.com/macros/s/AKfycbwc7PonHUaph8FShMkWYc4kwE8glBiaFUJp5qpG_egwnWVCS7dSlnJSYO0WfhvwqOoK/exec';
 
-/* 推播的後端（apiPushKey / apiPushSub）還沒做。做好再改成 true。 */
-var PUSH_READY = false;
+/* 推播的後端（22-推播API.gs 的 apiPushKey / apiPushSub）10/11 做好了 → 打開。開 App 2 秒後跳「開啟通知」卡片。 */
+var PUSH_READY = true;
 
 var frame = document.getElementById('frame');
 var veil  = document.getElementById('veil');
