@@ -1,6 +1,6 @@
 /* 家本 PWA — Network First，離線時回退快取（從家菜金 sw.js 搬來，2026-10-11 慎言） */
 /* 版號 = 改檔日期。動任何 SHELL 內的檔案就把這行改掉。 */
-const CACHE = 'jiaben-20261011a';
+const CACHE = 'jiaben-20261011c';
 
 const SHELL = [
   './',
