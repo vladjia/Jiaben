@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>家本 · JIABEN</title>
+<meta name="description" content="元家的財務系統：家序・日常帳務管理　家衡・理財規劃與風險管理">
+<meta name="robots" content="noindex,nofollow">
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B0807">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="家本">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icons/app/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/app/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/app/icon-192.png">
+
+<!--
+  家本 App 外殼（2026-10-11，慎言。從家菜金 Jia-Cai 的 index.html 搬來）
+
+  它做的事：
+    · 把 GAS 網頁應用程式包在全螢幕 iframe 裡，從主畫面打開像一支 App
+    · 開場影片：每次打開 App 播一次（不循環、沒聲音）；換頁時改用 loading 影片
+    · 內頁畫好（famready）才掀開開場，不會露出空白頁
+    · 換頁（famnav）、底色同步（fambg）、瀏海高度（famsafe）—— 跟家菜金同一套訊號
+    · 推播訂閱的接線照搬，但後端還沒做 → PUSH_READY = false，先不跳通知卡
+
+  跟家菜金不一樣：
+    · 沒有 PIN（元家 10/11 選「先試只有我自己」）：GAS 部署「只有我自己」，
+      靠手機上已經登入的 Google 帳號。萬一在 iframe 裡被擋，連線逾時時會出現
+      「在瀏覽器開」的按鈕；真的常常被擋，再改回 PIN。
+-->
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;min-height:100%;overflow:hidden;background:#0B0807}
+body{color:#E9DCC4;font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif}
+
+#frame{position:fixed;top:0;left:0;width:100vw;height:100vh;min-height:100vh;
+  min-height:100dvh;height:100dvh;border:0;display:block;background:#FBF6F7}
+
+/* ── 開場／換頁的遮幕 ───────────────────────────
+   底下先鋪「影片的第一幀」靜圖，影片蓋在上面：
+   影片還沒接上、被擋、或掛掉，畫面都不會黑。
+   直式／橫式的條件跟下面 JS 的 mqMobile 一樣。 */
+#veil{position:fixed;inset:0;z-index:10;overflow:hidden;
+  background:#0B0807 url('assets/opening/jiaben-opening-web-first.webp') center/cover no-repeat;
+  transition:opacity .6s ease}
+#veil.nav{background-image:url('assets/loading/jiaben-loading-web-2-loop-first.webp')}
+@media (max-width:700px) and (orientation:portrait){
+  #veil{background-image:url('assets/opening/jiaben-opening-first.webp')}
+  #veil.nav{background-image:url('assets/loading/jiaben-loading-mobile-loop-first.webp')}
+}
+#veil.hide{opacity:0;pointer-events:none}
+#vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  background:transparent;pointer-events:none}
+
+/* 影片本身已經有「家本」的字跟書，HTML 只在最下面放一行狀態 */
+.box{position:absolute;left:0;right:0;z-index:3;text-align:center;
+  bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+.st{font-size:12px;color:#CDBB98;font-weight:700;letter-spacing:2px;line-height:1.8;padding:0 16px;
+  text-shadow:0 2px 10px rgba(0,0,0,.85);min-height:16px}
+.skip{display:none;margin:12px auto 0;font-size:11px;color:#9C8B70;letter-spacing:2px}
+.btns{display:none;gap:10px;justify-content:center;margin-top:14px}
+.btns a,.btns button{font:700 14px/1 'Noto Sans TC',sans-serif;padding:12px 18px;border-radius:10px;
+  cursor:pointer;text-decoration:none;border:1px solid #6E5530;background:#1A120C;color:#F0D9A6}
+
+/* 通知邀請卡（後端推播做好才會出現） */
+#npc{display:none;position:fixed;z-index:9;left:12px;right:12px;max-width:440px;margin-left:auto;
+  bottom:calc(12px + env(safe-area-inset-bottom,0px));background:#16100C;border:1px solid #4A3820;
+  border-radius:14px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.55)}
+#npc b{display:block;font-size:15px;color:#F0D9A6;letter-spacing:1px}
+#npc p{margin-top:5px;font-size:12.5px;line-height:1.6;color:#A8987E}
+#npc .r{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+#npc button{font:600 14px/1 inherit;padding:11px 18px;border-radius:9px;cursor:pointer;
+  border:1px solid #4A3820;background:#0E0A07;color:#A8987E}
+#npc button.y{background:#2A1C10;border-color:#8A6A35;color:#F0D9A6}
+#npc button:disabled{opacity:.45;cursor:default}
+#npcMsg{margin-top:9px;font-size:11.5px;line-height:1.55;color:#8E8068;word-break:break-all;white-space:pre-wrap}
+#npcMsg.bad{color:#E0778E}
+#npcMsg.good{color:#7FBE8B}
+</style>
+</head>
+<body>
+<iframe id="frame" title="家本" referrerpolicy="no-referrer-when-downgrade" allow="clipboard-write"></iframe>
+
+<div id="veil">
+  <video id="vid" muted playsinline webkit-playsinline preload="auto" aria-hidden="true"></video>
+  <div class="box">
+    <div class="st" id="st">連線中…</div>
+    <div class="skip" id="skip">點一下畫面跳過</div>
+    <div class="btns" id="btns">
+      <button id="go">重試</button>
+      <a id="open" target="_blank" rel="noopener">在瀏覽器開</a>
+    </div>
+  </div>
+</div>
+
+<div id="npc">
+  <b id="npcT">開啟通知</b>
+  <p id="npcP">對帳日、轉帳任務、歲例扣款 —— 讓家本主動提醒你，不用自己記得打開。</p>
+  <div id="npcMsg"></div>
+  <div class="r"><button id="npcNo">稍後再說</button><button id="npcYes" class="y">開啟</button></div>
+</div>
+
+<script>
+/* ══ 部署之後，把這條換成 GAS 網頁應用程式的網址（…/exec）══ */
+var APP = 'https://script.google.com/macros/s/你的部署ID/exec';
+
+/* 推播的後端（apiPushKey / apiPushSub）還沒做。做好再改成 true。 */
+var PUSH_READY = false;
+
+var frame = document.getElementById('frame');
+var veil  = document.getElementById('veil');
+var vid   = document.getElementById('vid');
+var st    = document.getElementById('st');
+var skip  = document.getElementById('skip');
+var btns  = document.getElementById('btns');
+var go    = document.getElementById('go');
+var openA = document.getElementById('open');
+openA.href = APP;
+
+var mqMobile = window.matchMedia('(max-width:700px) and (orientation:portrait)');
+
+/* ── 影片 ───────────────────────────────────────
+   opening：打開 App 播一次，不循環、沒聲音（元家 10/11 定）。播完停在最後一幀。
+   loading：換頁時用，循環。電腦用不翻書那版（web-2），手機用 mobile（元家選定）。 */
+var KIND = 'opening';
+var opened = false;          // 開場播完了沒（或被跳過、播不出來）
+function vidSrc(){
+  var m = mqMobile.matches;
+  if (KIND === 'opening') return m ? 'assets/opening/jiaben-opening.mp4' : 'assets/opening/jiaben-opening-web.mp4';
+  return m ? 'assets/loading/jiaben-loading-mobile-loop.mp4' : 'assets/loading/jiaben-loading-web-2-loop.mp4';
+}
+function playVid(kind){
+  KIND = kind;
+  veil.classList.toggle('nav', kind !== 'opening');
+  try {
+    vid.pause();
+    vid.loop = (kind !== 'opening');
+    vid.muted = true; vid.defaultMuted = true; vid.playsInline = true;
+    vid.src = vidSrc();
+    vid.load();
+    var p = vid.play();
+    if (p && p.catch) p.catch(function(){ if (KIND === 'opening') openDone(); });
+  } catch (e) { if (kind === 'opening') openDone(); }
+}
+vid.addEventListener('ended', function(){ if (KIND === 'opening') openDone(); });
+vid.addEventListener('error', function(){ if (KIND === 'opening') openDone(); });
+function openDone(){
+  if (opened) return;
+  opened = true;
+  skip.style.display = 'none';
+  if (ready) reveal();
+}
+/* 開場的時候點一下畫面就跳過（內頁已經好了才有意義） */
+veil.addEventListener('click', function(){ if (KIND === 'opening' && ready) openDone(); });
+
+/* Service Worker（每次啟動都 update，家菜金的坑C） */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(function(r){ r.update(); }).catch(function(){});
+}
+
+/* ── 載入內頁 ─────────────────────────────────── */
+var watchdog = null, revealTimer = null, revealed = false, ready = false, gasWin = null, hello = false;
+
+function load(){
+  revealed = false; ready = false; hello = false;
+  clearTimeout(revealTimer);
+  /* 蓋上去要瞬間（不然換頁會先看到舊頁淡出），掀開才慢慢淡 */
+  veil.style.transition = 'none';
+  veil.classList.remove('hide');
+  void veil.offsetWidth;
+  veil.style.transition = '';
+  btns.style.display = 'none';
+  st.textContent = '連線中…';
+  clearTimeout(watchdog);
+  watchdog = setTimeout(blocked, 15000);
+  var qs = location.search.replace(/^\?/, '');
+  frame.src = APP + (qs ? (APP.indexOf('?') >= 0 ? '&' : '?') + qs : '');
+}
+
+function safeTop(){
+  var d = document.createElement('div');
+  d.style.cssText = 'position:fixed;top:0;height:env(safe-area-inset-top,0px)';
+  document.body.appendChild(d);
+  var h = d.offsetHeight; d.remove(); return h;
+}
+
+/* 連不上家本：「只有我自己」在 App 裡被 Google 擋（要登入／第三方 Cookie），
+   或網路太慢。蓋回遮幕，給「重試」跟「在瀏覽器開」。 */
+function blocked(){
+  if (ready) return;
+  clearTimeout(revealTimer); clearTimeout(watchdog);
+  opened = true; skip.style.display = 'none';
+  veil.classList.remove('hide');
+  st.innerHTML = '家本沒有回應<br>可能要先登入 Google，按「在瀏覽器開」';
+  btns.style.display = 'flex';
+}
+
+/* 內頁好了 → 開場播完才掀（換頁時沒有開場，直接掀） */
+function markReady(){
+  ready = true;
+  clearTimeout(watchdog);
+  if (KIND === 'opening' && !opened) {
+    st.textContent = '';
+    skip.style.display = 'block';
+    return;
+  }
+  reveal();
+}
+function reveal(){
+  if (revealed) return;
+  revealed = true;
+  clearTimeout(revealTimer);
+  veil.classList.add('hide');
+  setTimeout(function(){ try { vid.pause(); } catch(e){} }, 700);
+  if (PUSH_READY) setTimeout(pushGate, 2000);
+}
+
+frame.addEventListener('load', function(){
+  if (!frame.src || frame.src === 'about:blank') return;
+  if (ready) return;
+  st.textContent = '載入資料…';
+  /* 家本每一頁（含「施工中」）都會喊 famhello。iframe 載完了還沒喊過
+     → 多半是 Google 的登入頁或「拒絕連線」被塞進來了。再等 6 秒，還沒有就當作被擋。 */
+  if (!hello) { clearTimeout(revealTimer); revealTimer = setTimeout(blocked, 6000); }
+  setTimeout(function(){
+    try { if (gasWin) gasWin.postMessage({ t:'famsafe', top: safeTop() }, '*'); } catch(e){}
+  }, 300);
+});
+go.addEventListener('click', function(ev){ ev.stopPropagation(); load(); });
+
+window.addEventListener('message', function(ev){
+  var o = ev.origin || '';
+  if (!/\.googleusercontent\.com$/.test(o) && o !== 'https://script.google.com') return;
+  var d = ev.data;
+  if (!d) return;
+
+  if (d.t === 'famhello') {                      // 內頁有抽屜 → 一定會送 famready，等它
+    gasWin = ev.source;
+    if (!hello && !ready) { hello = true; clearTimeout(revealTimer); revealTimer = setTimeout(markReady, 12000); }
+    try { gasWin.postMessage({ t:'famhi' }, '*'); } catch(e){}
+    try { gasWin.postMessage({ t:'famsafe', top: safeTop() }, '*'); } catch(e){}
+    return;
+  }
+  if (d.t === 'famready') { clearTimeout(revealTimer); markReady(); return; }
+  if (d.t === 'fambg') {                          // 底色同步，手機底部安全區才不會露黑
+    var c = String(d.color || '').trim();
+    if (/^(#[0-9a-f]{3,8}|rgba?\([^)]*\))$/i.test(c)) {
+      document.documentElement.style.backgroundColor = c;
+      document.body.style.backgroundColor = c;
+      frame.style.backgroundColor = c;
+      var mt = document.querySelector('meta[name="theme-color"]');
+      if (mt) mt.setAttribute('content', c);
+    }
+    return;
+  }
+  if (d.t === 'famnav') {                         // 抽屜換頁
+    var p = String(d.page || '');
+    history.replaceState(null, '', (p && p !== 'home') ? ('?page=' + encodeURIComponent(p)) : location.pathname);
+    playVid('loading');
+    load();
+    return;
+  }
+  if (d.t === 'famurl') {
+    var q = String(d.page || '');
+    history.replaceState(null, '', q ? ('?page=' + encodeURIComponent(q)) : location.pathname);
+    return;
+  }
+  if (d.t === 'fampushres') {
+    var f = pmWait[d.id];
+    if (f) { delete pmWait[d.id]; f(d.r || {}); }
+  }
+});
+
+/* ── 推播（照搬家菜金；PUSH_READY 打開才會用到）──────────── */
+var npc = document.getElementById('npc'), npcT = document.getElementById('npcT'),
+    npcP = document.getElementById('npcP'), npcM = document.getElementById('npcMsg'),
+    npcY = document.getElementById('npcYes'), npcN = document.getElementById('npcNo');
+var PUSH_LATER_DAYS = 30, pmSeq = 0, pmWait = {}, pushStep = '', pushRun = null, pushGateDone = false;
+
+function b64key(s){ s = String(s).replace(/-/g,'+').replace(/_/g,'/'); while (s.length % 4) s += '=';
+  var raw = atob(s), a = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) a[i] = raw.charCodeAt(i); return a; }
+function devName(){ var ua = navigator.userAgent;
+  var os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android'
+         : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : '其他';
+  return os + ' · ' + (navigator.language || ''); }
+function npcShow(title, desc, msg, cls, yes, noBtn){
+  npcT.textContent = title; npcP.textContent = desc; npcM.textContent = msg || ''; npcM.className = cls || '';
+  npcY.textContent = yes || '開啟'; npcY.disabled = false;
+  npcN.style.display = (noBtn === false) ? 'none' : ''; npc.style.display = 'block'; }
+function npcFail(where, err){
+  npcShow('通知還沒設定成功', '卡在「' + where + '」這一步。按重試會整個重來一次。',
+    String((err && err.message) || err || '').slice(0, 200), 'bad', '重試'); }
+function send(act, extra, ms){
+  return new Promise(function(res, rej){
+    var id = ++pmSeq, done = false;
+    pmWait[id] = function(r){ done = true; res(r); };
+    var msg = { t:'fampush', act:act, id:id }; for (var k in extra) msg[k] = extra[k];
+    if (!gasWin) { delete pmWait[id]; rej(new Error('App 畫面還沒跟外殼接上線')); return; }
+    try { gasWin.postMessage(msg, '*'); } catch(e){ delete pmWait[id]; rej(e); return; }
+    setTimeout(function(){ if (done) return; delete pmWait[id];
+      rej(new Error('等了 ' + Math.round(ms / 1000) + ' 秒後端還沒回，等一下再按重試')); }, ms);
+  });
+}
+function alive(tries){
+  tries = tries || 0;
+  if (!gasWin) {
+    if (tries > 24) return Promise.reject(new Error('App 畫面還沒跟外殼接上線'));
+    return new Promise(function(r){ setTimeout(r, 500); }).then(function(){ return alive(tries + 1); });
+  }
+  return send('ping', {}, 1200).catch(function(){
+    if (tries < 24) return alive(tries + 1);
+    throw new Error('App 畫面沒回應。把 App 整個關掉重開一次。');
+  });
+}
+function ask(act, extra){ return alive().then(function(){ return send(act, extra, 45000); }); }
+function sendSub(sub){
+  return ask('sub', { sub: sub.toJSON(), device: devName() }).then(function(r){
+    if (!r || !r.ok) throw new Error((r && r.msg) || '後端沒說原因'); return true; });
+}
+function renew(sub, n){
+  return sendSub(sub).catch(function(err){
+    if (n >= 1) { npcFail('存進後端', err); return; }
+    setTimeout(function(){ renew(sub, n + 1); }, 20000);
+  });
+}
+function step(where, txt){ pushStep = where; npcM.textContent = txt; npcM.className = ''; }
+function famPush(force){
+  if (pushRun) return pushRun;
+  npcY.disabled = true; step('啟動', '準備中…');
+  pushRun = navigator.serviceWorker.ready.then(function(reg){
+    return reg.pushManager.getSubscription().then(function(old){
+      if (!old) return null;
+      return force ? old.unsubscribe().then(function(){ return null; }) : old;
+    }).then(function(sub){
+      if (sub) return sub;
+      step('跟後端要公鑰', '跟後端要金鑰…（最久 45 秒）');
+      return ask('key', {}).then(function(j){
+        if (!j || !j.ok || !j.key) throw new Error((j && j.msg) || '拿不到公鑰');
+        step('跟瀏覽器申請訂閱', '跟瀏覽器申請訂閱…');
+        return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64key(j.key) });
+      });
+    }).then(function(sub){ step('存進後端', '存進後端…（最久 45 秒）'); return sendSub(sub); });
+  }).then(function(){
+    npcShow('通知已開啟', '之後該轉帳、該對帳的時候我會直接提醒你。', '', 'good', '好', false);
+    npcY.onclick = function(){ npc.style.display = 'none'; npcY.onclick = null; };
+    try { localStorage.removeItem('JB_PUSH_LATER'); } catch(e){}
+    return true;
+  }).catch(function(err){ npcFail(pushStep || '存進後端', err); return false; })
+    .then(function(ok){ pushRun = null; npcY.disabled = false; return ok; });
+  return pushRun;
+}
+window.famPush = famPush;
+npcY.addEventListener('click', function(){
+  if (npcY.onclick || pushRun || npcY.disabled) return;
+  npcY.disabled = true; npcM.textContent = '處理中…'; npcM.className = '';
+  if (Notification.permission === 'granted') { famPush(true); return; }
+  Notification.requestPermission().then(function(p){
+    if (p !== 'granted') { npcShow('通知被擋住了', '網址列左邊的鎖頭 → 通知 → 允許，再回來按重試。', '', 'bad', '重試'); return; }
+    famPush(true);
+  });
+});
+npcN.addEventListener('click', function(){
+  npc.style.display = 'none';
+  try { localStorage.setItem('JB_PUSH_LATER', String(Date.now())); } catch(e){}
+});
+function pushGate(){
+  if (pushGateDone) return;
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') return;
+    pushGateDone = true;
+    if (Notification.permission === 'denied') return;
+    navigator.serviceWorker.ready.then(function(reg){
+      return reg.pushManager.getSubscription().then(function(sub){
+        if (sub) return renew(sub, 0);
+        if (Notification.permission === 'granted') return famPush(false);
+        var la = Number(localStorage.getItem('JB_PUSH_LATER') || 0);
+        if (la && Date.now() - la < PUSH_LATER_DAYS * 86400000) return;
+        npc.style.display = 'block';
+      });
+    }).catch(function(err){ npcFail('準備 Service Worker', err); });
+  } catch(e){}
+}
+
+/* ── 開機 ─────────────────────────────────────── */
+if (APP.indexOf('你的部署ID') >= 0) {
+  st.textContent = '⚠️ index.html 裡的 APP 網址還沒填';
+} else if (!navigator.onLine) {
+  st.textContent = '目前離線，連上網路再試';
+  btns.style.display = 'flex';
+} else {
+  playVid('opening');
+  load();
+}
+</script>
+</body>
+</html>
