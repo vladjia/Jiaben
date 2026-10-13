@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#191a15">
+<title>家本・通知圖示核對</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#191a15;color:#f2e8ce;font-family:system-ui,"Microsoft JhengHei",sans-serif;line-height:1.7}main{max-width:720px;margin:auto;padding:32px 20px 60px}h1{font-family:serif;font-size:30px;color:#d9bc76;margin:0 0 12px}p{margin:0 0 16px}section{background:#f2e8ce;color:#24241d;border:1px solid #b79554;border-radius:14px;padding:20px;margin:20px 0}button{font:inherit;font-size:16px;min-height:48px;padding:10px 18px;border:1px solid #b79554;border-radius:8px;background:#282920;color:#f2e8ce;margin:5px 4px 5px 0;cursor:pointer}button:disabled{background:#76756e;color:#eee;cursor:wait}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#e5d9bd;color:#24241d;border-radius:8px;padding:14px;font-size:14px;line-height:1.7}#error{color:#8c2925;font-weight:600;white-space:pre-wrap;margin:10px 0}.marks{display:flex;gap:28px;align-items:center;background:#191a15;border-radius:8px;padding:14px;color:#f2e8ce}.marks img{width:32px;height:32px;vertical-align:middle;margin-right:8px}.tip{color:#b8b29e;font-size:14px}#state{font-weight:600}
+</style>
+<main>
+<h1>家本・通知圖示核對</h1>
+<p>查手機實際使用的推播版本，再直接指定水滴測試。這頁不連 GAS、不讀健康數值，也不變更推播訂閱。</p>
+<section>
+<div class="marks"><span><img src="./assets/icons/notifications/badge-water.png" alt="水滴">喝水</span><span><img src="./assets/icons/notifications/badge-book.png" alt="書本">家本</span></div>
+<p id="state" role="status" aria-live="polite">正在讀取通知設定…</p>
+<div id="error" role="alert"></div>
+<button id="read">重新讀取診斷</button><button id="update">檢查新版推播程式</button>
+<pre id="report">稍等一下。</pre><button id="copy">複製診斷文字</button>
+</section>
+<section>
+<p>請先在通知欄滑掉舊的喝水提醒，避免多則通知的群組圖示混在一起。這頁只會清除自己建立的測試通知。</p>
+<button id="water">顯示水滴測試</button><button id="book">顯示書本測試</button><button id="close">清除測試通知</button>
+<p>測試標題會寫「圖示測試・v2」。發送後鎖屏，看沙漏旁邊是否出現水滴或書本；再回來複製診斷文字。</p>
+</section>
+<p class="tip">診斷只列推播版本、權限、圖示路徑、透明像素比例與通知數量。不列通知標題／內容、帳目、健康值、金鑰或完整跳轉網址。小圖示的最後外觀仍由 Android／瀏覽器決定。</p>
+</main>
+<script src="./notification-diagnostics.js"></script>
+</html>

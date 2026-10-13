@@ -1,6 +1,6 @@
 /* 家本 PWA — Network First，離線時回退快取（從家菜金 sw.js 搬來，2026-10-11 慎言） */
 /* 版號 = 改檔日期。動任何 SHELL 內的檔案就把這行改掉。 */
-const CACHE = 'jiaben-20261013-notification-badges-v1';
+const CACHE = 'jiaben-20261013-notification-badges-v2';
 
 const SHELL = [
   './',
@@ -45,6 +45,18 @@ self.addEventListener('activate', e => {
     ))
     .then(() => self.clients.claim())
   );
+});
+
+/* 診斷頁僅查目前實際執行的版本；不讀推播內容或健康資料。 */
+self.addEventListener('message', e => {
+  if (!e.data || e.data.type !== 'JIABEN_NOTIFICATION_DIAGNOSTICS') return;
+  if (!e.source || !e.source.url) return;
+  try {
+    if (new URL(e.source.url).origin !== self.location.origin) return;
+  } catch (_) { return; }
+  if (e.ports && e.ports[0]) {
+    e.ports[0].postMessage({ service: 'jiaben-notification-diagnostics', version: 1, cache: CACHE });
+  }
 });
 
 /* ══ 推播（後端做好才會有東西送來）══
