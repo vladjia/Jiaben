@@ -1,6 +1,6 @@
 /* 家本 PWA — Network First，離線時回退快取（從家菜金 sw.js 搬來，2026-10-11 慎言） */
 /* 版號 = 改檔日期。動任何 SHELL 內的檔案就把這行改掉。 */
-const CACHE = 'jiaben-20261011d';
+const CACHE = 'jiaben-20261013-notification-badges-v1';
 
 const SHELL = [
   './',
@@ -12,6 +12,8 @@ const SHELL = [
   './assets/icons/app/icon-maskable-512.png',
   './assets/icons/app/apple-touch-icon.png',
   './assets/icons/app/favicon-32.png',
+  './assets/icons/notifications/badge-book.png',
+  './assets/icons/notifications/badge-water.png',
   './assets/opening/jiaben-opening-first.webp',
   './assets/opening/jiaben-opening-web-first.webp',
   './assets/loading/jiaben-loading-mobile-loop-first.webp',
@@ -48,6 +50,18 @@ self.addEventListener('activate', e => {
 /* ══ 推播（後端做好才會有東西送來）══
    ⚠️ 一定要 showNotification：訂閱時宣告 userVisibleOnly:true，
       收了不顯示，瀏覽器會默默撤銷訂閱。 */
+/* Android 鎖屏／狀態列的 badge 必須是透明底單色輪廓，與彩色 icon 分開。
+   提醒主題依既有 d.url 的 page 判斷，不改推播文案、訂閱、tag 或點擊路由。 */
+function notificationBadge(d) {
+  try {
+    const target = new URL(d.url || './', self.registration.scope);
+    if (target.searchParams.get('page') === 'water') {
+      return './assets/icons/notifications/badge-water.png';
+    }
+  } catch (_) { /* 舊或不合法連結仍使用家本書本 badge。 */ }
+  return './assets/icons/notifications/badge-book.png';
+}
+
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; }
@@ -55,7 +69,7 @@ self.addEventListener('push', e => {
   e.waitUntil(self.registration.showNotification(d.title || '家本', {
     body:  d.body || '',
     icon:  './assets/icons/app/icon-192.png',
-    badge: './assets/icons/app/icon-192.png',
+    badge: notificationBadge(d),
     tag:   d.tag || 'jiaben',
     renotify: true,
     data:  { url: d.url || './' }
